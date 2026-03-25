@@ -173,11 +173,13 @@ struct CopyButton: View {
 
     var body: some View {
         Button(action: {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            justCopied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                justCopied = false
+            if copyToPasteboard(text) {
+                justCopied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    justCopied = false
+                }
+            } else {
+                NSSound.beep()
             }
         }) {
             Label(justCopied ? "Copied!" : "Copy", systemImage: justCopied ? "checkmark.circle.fill" : "doc.on.doc")
@@ -191,11 +193,19 @@ struct CopyButton: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .foregroundColor(justCopied ? .green : .secondary)
         .onHover { hovering in
             isHovered = hovering
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
+    }
+
+    @MainActor
+    private func copyToPasteboard(_ value: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.prepareForNewContents(with: .currentHostOnly)
+        guard pasteboard.setString(value, forType: .string) else { return false }
+        return pasteboard.string(forType: .string) == value
     }
 }

@@ -24,7 +24,7 @@ func sseRoleChunk(id: String, created: Int) -> ChatCompletionChunk {
         model: modelName,
         choices: [.init(
             index: 0,
-            delta: .init(role: "assistant", content: nil),
+            delta: .init(role: "assistant", content: nil, tool_calls: nil),
             finish_reason: nil
         )]
     )
@@ -39,7 +39,7 @@ func sseContentChunk(id: String, created: Int, content: String) -> ChatCompletio
         model: modelName,
         choices: [.init(
             index: 0,
-            delta: .init(role: nil, content: content),
+            delta: .init(role: nil, content: content, tool_calls: nil),
             finish_reason: nil
         )]
     )
@@ -54,7 +54,7 @@ func sseStopChunk(id: String, created: Int) -> ChatCompletionChunk {
         model: modelName,
         choices: [.init(
             index: 0,
-            delta: .init(role: nil, content: nil),
+            delta: .init(role: nil, content: nil, tool_calls: nil),
             finish_reason: "stop"
         )]
     )

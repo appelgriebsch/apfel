@@ -46,7 +46,13 @@ func startServer(config: ServerConfig) async throws {
     router.get("/v1/models") { _, _ -> Response in
         jsonResponse(jsonString(ModelsListResponse(
             object: "list",
-            data: [.init(id: modelName, object: "model", created: 1719792000, owned_by: "apple")]
+            data: [.init(
+                id: modelName, object: "model", created: 1719792000, owned_by: "apple",
+                context_window: 4096,
+                supported_parameters: ["temperature", "max_tokens", "seed", "stream", "tools", "tool_choice", "response_format"],
+                unsupported_parameters: ["logprobs", "n", "stop", "presence_penalty", "frequency_penalty"],
+                notes: "Apple on-device model via FoundationModels framework"
+            )]
         )))
     }
 

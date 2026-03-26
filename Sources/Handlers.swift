@@ -7,6 +7,7 @@ import FoundationModels
 import Foundation
 import Hummingbird
 import NIOCore
+import ApfelCore
 
 struct ChatRequestTrace: Sendable {
     let stream: Bool
@@ -27,7 +28,13 @@ func handleListModels() -> Response {
             id: modelName,
             object: "model",
             created: 1719792000,
-            owned_by: "apple"
+            owned_by: "apple",
+            context_window: 4096,
+            supported_parameters: ["temperature", "max_tokens", "seed", "stream",
+                                    "tools", "tool_choice", "response_format"],
+            unsupported_parameters: ["logprobs", "n", "stop",
+                                      "presence_penalty", "frequency_penalty"],
+            notes: "Apple on-device model via FoundationModels framework"
         )]
     )
     let body = jsonString(response)
@@ -45,110 +52,89 @@ func handleListModels() -> Response {
 /// POST /v1/chat/completions — Main chat endpoint (streaming + non-streaming).
 func handleChatCompletion(_ request: Request, context: some RequestContext) async throws -> (response: Response, trace: ChatRequestTrace) {
     var events: [String] = []
+
     // Decode request body
-    let body = try await request.body.collect(upTo: 1024 * 1024)  // 1MB max
+    let body = try await request.body.collect(upTo: 1024 * 1024)
     let requestBodyString = body.getString(at: body.readerIndex, length: body.readableBytes) ?? ""
     events.append("request bytes=\(body.readableBytes)")
-    let decoder = JSONDecoder()
+
     let chatRequest: ChatCompletionRequest
     do {
-        chatRequest = try decoder.decode(ChatCompletionRequest.self, from: body)
+        chatRequest = try JSONDecoder().decode(ChatCompletionRequest.self, from: body)
     } catch {
-        let message = "Invalid JSON: \(error.localizedDescription)"
-        return (
-            openAIError(
-                status: .badRequest,
-                message: message,
-                type: "invalid_request_error"
-            ),
-            ChatRequestTrace(
-                stream: false,
-                estimatedTokens: nil,
-                error: message,
-                requestBody: truncateForLog(requestBodyString),
-                responseBody: message,
-                events: events + ["decode failed: \(message)"]
-            )
-        )
+        let msg = "Invalid JSON: \(error.localizedDescription)"
+        return (openAIError(status: .badRequest, message: msg, type: "invalid_request_error"),
+                ChatRequestTrace(stream: false, estimatedTokens: nil, error: msg,
+                                 requestBody: truncateForLog(requestBodyString),
+                                 responseBody: msg, events: events + ["decode failed: \(msg)"]))
     }
 
     // Validate: must have at least one message
     guard !chatRequest.messages.isEmpty else {
-        let message = "'messages' must contain at least one message"
-        return (
-            openAIError(
-                status: .badRequest,
-                message: message,
-                type: "invalid_request_error"
-            ),
-            ChatRequestTrace(
-                stream: chatRequest.stream == true,
-                estimatedTokens: nil,
-                error: message,
-                requestBody: truncateForLog(requestBodyString),
-                responseBody: message,
-                events: events + ["validation failed: empty messages"]
-            )
-        )
+        let msg = "'messages' must contain at least one message"
+        return (openAIError(status: .badRequest, message: msg, type: "invalid_request_error"),
+                ChatRequestTrace(stream: chatRequest.stream == true, estimatedTokens: nil, error: msg,
+                                 requestBody: truncateForLog(requestBodyString),
+                                 responseBody: msg, events: events + ["validation failed: empty messages"]))
     }
 
-    // Validate: last message should be from user
+    // Validate: last message must be user
     guard chatRequest.messages.last?.role == "user" else {
-        let message = "Last message must have role 'user'"
-        return (
-            openAIError(
-                status: .badRequest,
-                message: message,
-                type: "invalid_request_error"
-            ),
-            ChatRequestTrace(
-                stream: chatRequest.stream == true,
-                estimatedTokens: nil,
-                error: message,
-                requestBody: truncateForLog(requestBodyString),
-                responseBody: message,
-                events: events + ["validation failed: last role != user"]
-            )
-        )
+        let msg = "Last message must have role 'user'"
+        return (openAIError(status: .badRequest, message: msg, type: "invalid_request_error"),
+                ChatRequestTrace(stream: chatRequest.stream == true, estimatedTokens: nil, error: msg,
+                                 requestBody: truncateForLog(requestBodyString),
+                                 responseBody: msg, events: events + ["validation failed: last role != user"]))
+    }
+
+    // Reject image content (not supported by Apple's on-device model)
+    let hasImages = chatRequest.messages.contains { msg in
+        if case .parts(let parts) = msg.content {
+            return parts.contains { $0.type == "image_url" }
+        }
+        return false
+    }
+    if hasImages {
+        let msg = "Image content is not supported by the Apple on-device model"
+        return (openAIError(status: .badRequest, message: msg, type: "invalid_request_error"),
+                ChatRequestTrace(stream: chatRequest.stream == true, estimatedTokens: nil, error: msg,
+                                 requestBody: truncateForLog(requestBodyString),
+                                 responseBody: msg, events: events + ["rejected: image content"]))
     }
 
     events.append("decoded messages=\(chatRequest.messages.count) stream=\(chatRequest.stream == true) model=\(chatRequest.model)")
 
-    // Extract system prompt (first system message, if any)
-    let systemPrompt = chatRequest.messages.first(where: { $0.role == "system" })?.content
+    // Build session options from request
+    let sessionOpts = SessionOptions(
+        temperature: chatRequest.temperature,
+        maxTokens: chatRequest.max_tokens,
+        seed: chatRequest.seed.map { UInt64($0) },
+        permissive: false
+    )
 
-    // Create session
-    let session = makeSession(systemPrompt: systemPrompt)
+    // Build session + extract final prompt via ContextManager (Transcript API)
+    let (session, finalPrompt) = ContextManager.makeSession(
+        messages: chatRequest.messages,
+        tools: chatRequest.tools,
+        options: sessionOpts
+    )
+    events.append("context built history=\(max(0, chatRequest.messages.count - 1)) final_prompt_chars=\(finalPrompt.count)")
 
-    // Get user messages (excluding system)
-    let userAssistantMessages = chatRequest.messages.filter { $0.role != "system" }
-
-    // Replay history: feed all messages except the last one to build context
-    if userAssistantMessages.count > 1 {
-        for msg in userAssistantMessages.dropLast() {
-            if msg.role == "user" {
-                // Feed user message and discard response to build session context
-                events.append("replay user chars=\(msg.content.count)")
-                let _ = try await session.respond(to: msg.content)
-            } else {
-                events.append("replay assistant chars=\(msg.content.count)")
-            }
-            // Assistant messages are implicitly part of session history after respond()
-        }
-    }
-
-    // The final user message
-    let finalPrompt = userAssistantMessages.last!.content
-    events.append("final prompt chars=\(finalPrompt.count)")
+    let genOpts = makeGenerationOptions(sessionOpts)
     let requestId = "chatcmpl-\(UUID().uuidString.prefix(12).lowercased())"
     let created = Int(Date().timeIntervalSince1970)
 
-    // Streaming or non-streaming?
     if chatRequest.stream == true {
-        let result = streamingResponse(session: session, prompt: finalPrompt, id: requestId, created: created, requestBody: requestBodyString, events: events)
+        let result = streamingResponse(session: session, prompt: finalPrompt,
+                                       id: requestId, created: created,
+                                       genOpts: genOpts,
+                                       requestBody: requestBodyString, events: events)
         return (result.response, result.trace)
     } else {
-        let result = try await nonStreamingResponse(session: session, prompt: finalPrompt, id: requestId, created: created, requestBody: requestBodyString, events: events)
+        let result = try await nonStreamingResponse(session: session, prompt: finalPrompt,
+                                                     id: requestId, created: created,
+                                                     genOpts: genOpts,
+                                                     requestBody: requestBodyString, events: events)
         return (result.response, result.trace)
     }
 }
@@ -160,11 +146,26 @@ private func nonStreamingResponse(
     prompt: String,
     id: String,
     created: Int,
+    genOpts: GenerationOptions,
     requestBody: String,
     events: [String]
 ) async throws -> (response: Response, trace: ChatRequestTrace) {
-    let result = try await session.respond(to: prompt)
+    let result = try await session.respond(to: prompt, options: genOpts)
     let content = result.content
+
+    // Detect tool calls in response
+    let toolCalls = ToolCallHandler.detectToolCall(in: content)
+    let finishReason: String
+    let responseMessage: OpenAIMessage
+    if let calls = toolCalls {
+        finishReason = "tool_calls"
+        let openAIToolCalls = calls.map { ToolCall(id: $0.id, type: "function",
+                                                    function: ToolCallFunction(name: $0.name, arguments: $0.argumentsString)) }
+        responseMessage = OpenAIMessage(role: "assistant", content: nil, tool_calls: openAIToolCalls)
+    } else {
+        finishReason = "stop"
+        responseMessage = OpenAIMessage(role: "assistant", content: .text(content))
+    }
 
     let promptTokens = await TokenCounter.shared.count(prompt)
     let completionTokens = await TokenCounter.shared.count(content)
@@ -174,26 +175,16 @@ private func nonStreamingResponse(
         object: "chat.completion",
         created: created,
         model: modelName,
-        choices: [.init(
-            index: 0,
-            message: OpenAIMessage(role: "assistant", content: content),
-            finish_reason: "stop"
-        )],
-        usage: .init(
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: promptTokens + completionTokens
-        )
+        choices: [.init(index: 0, message: responseMessage, finish_reason: finishReason)],
+        usage: .init(prompt_tokens: promptTokens, completion_tokens: completionTokens,
+                     total_tokens: promptTokens + completionTokens)
     )
 
     let body = jsonString(payload)
     var headers = HTTPFields()
     headers[.contentType] = "application/json"
-    let response = Response(
-        status: .ok,
-        headers: headers,
-        body: .init(byteBuffer: ByteBuffer(string: body))
-    )
+    let response = Response(status: .ok, headers: headers,
+                             body: .init(byteBuffer: ByteBuffer(string: body)))
     return (
         response,
         ChatRequestTrace(
@@ -202,7 +193,7 @@ private func nonStreamingResponse(
             error: nil,
             requestBody: truncateForLog(requestBody),
             responseBody: truncateForLog(body),
-            events: events + ["non-stream response chars=\(content.count)", "finish_reason=stop"]
+            events: events + ["non-stream response chars=\(content.count)", "finish_reason=\(finishReason)"]
         )
     )
 }
@@ -214,6 +205,7 @@ private func streamingResponse(
     prompt: String,
     id: String,
     created: Int,
+    genOpts: GenerationOptions,
     requestBody: String,
     events: [String]
 ) -> (response: Response, trace: ChatRequestTrace) {
@@ -228,15 +220,14 @@ private func streamingResponse(
             let streamStart = Date()
             var responseLines: [String] = []
             var streamError: String?
-            // Send role announcement
-            let roleChunk = sseRoleChunk(id: id, created: created)
-            let roleLine = sseDataLine(roleChunk)
+
+            // Role announcement chunk
+            let roleLine = sseDataLine(sseRoleChunk(id: id, created: created))
             responseLines.append(roleLine.trimmingCharacters(in: .whitespacesAndNewlines))
             continuation.yield(ByteBuffer(string: roleLine))
             eventBox.append("sent role chunk")
 
-            // Stream model response
-            let stream = session.streamResponse(to: prompt)
+            let stream = session.streamResponse(to: prompt, options: genOpts)
             var prev = ""
             var chunkCount = 0
 
@@ -246,29 +237,22 @@ private func streamingResponse(
                     if content.count > prev.count {
                         let idx = content.index(content.startIndex, offsetBy: prev.count)
                         let delta = String(content[idx...])
-                        let chunk = sseContentChunk(id: id, created: created, content: delta)
-                        let chunkLine = sseDataLine(chunk)
+                        let chunkLine = sseDataLine(sseContentChunk(id: id, created: created, content: delta))
                         responseLines.append(chunkLine.trimmingCharacters(in: .whitespacesAndNewlines))
                         continuation.yield(ByteBuffer(string: chunkLine))
                         chunkCount += 1
-                        eventBox.append("sent content chunk #\(chunkCount) delta_chars=\(delta.count) total_chars=\(content.count)")
+                        eventBox.append("chunk #\(chunkCount) delta=\(delta.count) total=\(content.count)")
                     }
                     prev = content
                 }
 
-                // Send stop chunk
-                let stopChunk = sseStopChunk(id: id, created: created)
-                let stopLine = sseDataLine(stopChunk)
+                let stopLine = sseDataLine(sseStopChunk(id: id, created: created))
                 responseLines.append(stopLine.trimmingCharacters(in: .whitespacesAndNewlines))
                 continuation.yield(ByteBuffer(string: stopLine))
-                eventBox.append("sent stop chunk")
-
-                // Send [DONE]
                 continuation.yield(ByteBuffer(string: sseDone))
                 responseLines.append("data: [DONE]")
                 eventBox.append("sent [DONE] total_chars=\(prev.count)")
             } catch {
-                // On error, send an error event and close
                 let errMsg = "data: {\"error\":\"\(error.localizedDescription)\"}\n\n"
                 responseLines.append(errMsg.trimmingCharacters(in: .whitespacesAndNewlines))
                 continuation.yield(ByteBuffer(string: errMsg))
@@ -295,58 +279,43 @@ private func streamingResponse(
         }
     }
 
-    let response = Response(
-        status: .ok,
-        headers: headers,
-        body: .init(asyncSequence: responseStream)
-    )
     return (
-        response,
+        Response(status: .ok, headers: headers, body: .init(asyncSequence: responseStream)),
         ChatRequestTrace(
             stream: true,
             estimatedTokens: max(1, prompt.count / 4),
             error: nil,
             requestBody: truncateForLog(requestBody),
-            responseBody: "Streaming response in progress. See /v1/chat/completions/stream log entry for final SSE transcript.",
+            responseBody: "Streaming response in progress. See /v1/chat/completions/stream log for final SSE transcript.",
             events: events + ["stream request accepted", "final stream completion logged separately"]
         )
     )
 }
 
+// MARK: - TraceBuffer
+
 final class TraceBuffer: @unchecked Sendable {
     private var events: [String]
     private let lock = NSLock()
 
-    init(events: [String]) {
-        self.events = events
-    }
+    init(events: [String]) { self.events = events }
 
     func append(_ event: String) {
-        lock.lock()
-        events.append(event)
-        lock.unlock()
+        lock.lock(); events.append(event); lock.unlock()
     }
 
     func snapshot() -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return events
+        lock.lock(); defer { lock.unlock() }; return events
     }
 }
 
-// MARK: - Error Helpers
+// MARK: - Error Helper
 
 /// Create an OpenAI-formatted error response.
 func openAIError(status: HTTPResponse.Status, message: String, type: String, code: String? = nil) -> Response {
-    let error = OpenAIErrorResponse(
-        error: .init(message: message, type: type, param: nil, code: code)
-    )
+    let error = OpenAIErrorResponse(error: .init(message: message, type: type, param: nil, code: code))
     let body = jsonString(error)
     var headers = HTTPFields()
     headers[.contentType] = "application/json"
-    return Response(
-        status: status,
-        headers: headers,
-        body: .init(byteBuffer: ByteBuffer(string: body))
-    )
+    return Response(status: status, headers: headers, body: .init(byteBuffer: ByteBuffer(string: body)))
 }

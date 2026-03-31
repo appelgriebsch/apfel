@@ -62,6 +62,15 @@ cd apfel
 make install
 ```
 
+Or install with Homebrew:
+
+```bash
+brew tap Arthur-Ficial/tap
+brew install Arthur-Ficial/tap/apfel
+```
+
+Details: [brew-install.md](./brew-install.md)
+
 That's it. `make install` does everything:
 1. Auto-bumps the version number
 2. Builds a release binary

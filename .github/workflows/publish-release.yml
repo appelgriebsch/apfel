@@ -36,6 +36,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Select latest Xcode
+        run: |
+          # List available Xcode versions
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+          # Pick the highest-versioned Xcode available
+          latest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -n "$latest" ]]; then
+            echo "Selecting $latest"
+            sudo xcode-select -s "$latest/Contents/Developer"
+          fi
+          echo "Active SDK: $(xcrun --show-sdk-version)"
+          echo "Swift: $(swift --version 2>&1 | head -1)"
+
       - name: Verify tap token is configured
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}

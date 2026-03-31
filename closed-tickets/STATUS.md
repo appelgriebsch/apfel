@@ -1,6 +1,6 @@
 # apfel — Status Overview
 
-**Version:** 0.6.4
+**Version:** 0.6.6
 **Date:** 2026-03-31
 **Build:** ✅ Clean (`make install`, Swift 6.3 / macOS 26.4 SDK)
 **Tests:** ✅ 51 unit tests + 51 integration tests + Homebrew tap install/test/audit

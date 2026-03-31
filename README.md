@@ -1,5 +1,6 @@
 # apfel
 
+[![Version 0.6.1](https://img.shields.io/badge/version-0.6.1-blue)](https://github.com/Arthur-Ficial/apfel)
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)](https://developer.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

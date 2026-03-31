@@ -27,7 +27,11 @@ Every Mac with Apple Silicon has a **built-in LLM** - Apple's on-device foundati
 
 ## Requirements
 
-Apple Silicon Mac, macOS 26.4+, [Apple Intelligence enabled](https://support.apple.com/en-us/121115). No Xcode needed.
+- Apple Silicon Mac (M1 or later)
+- macOS 26.4 or newer
+- [Apple Intelligence enabled](https://support.apple.com/en-us/121115)
+- **Homebrew install:** nothing else needed
+- **Build from source:** Swift 6.2+ / Command Line Tools with macOS 26.4 SDK (no Xcode required)
 
 ## Install
 

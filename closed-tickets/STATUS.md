@@ -3,7 +3,7 @@
 **Version:** 0.6.4
 **Date:** 2026-03-31
 **Build:** ✅ Clean (`make install`, Swift 6.3 / macOS 26.4 SDK)
-**Tests:** ✅ 51 unit tests + 51 integration tests
+**Tests:** ✅ 51 unit tests + 51 integration tests + Homebrew tap install/test/audit
 
 ---
 
@@ -39,5 +39,6 @@
 | 015 | Deduplicate tool prompt/schema assembly | v0.6.4 |
 | 016 | Centralize chat handler error/trace construction | v0.6.4 |
 | 017 | Consolidate transcript budget candidate assembly | v0.6.4 |
+| 018 | Publish apfel via Homebrew tap | v0.6.4 |
 
 **Zero open tickets.**

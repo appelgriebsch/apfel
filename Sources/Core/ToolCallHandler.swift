@@ -97,9 +97,23 @@ public enum ToolCallHandler {
             remaining = String(remaining[end.upperBound...])
         }
 
-        // 3. Find JSON object starting at {"tool_calls"
+        // 3. Extract balanced JSON object starting at {"tool_calls" (handles trailing text)
         if let range = text.range(of: "{\"tool_calls\"") {
-            candidates.append(String(text[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines))
+            var depth = 0
+            var idx = range.lowerBound
+            while idx < text.endIndex {
+                if text[idx] == "{" { depth += 1 }
+                else if text[idx] == "}" { depth -= 1 }
+                if depth == 0 {
+                    candidates.append(String(text[range.lowerBound...idx]))
+                    break
+                }
+                idx = text.index(after: idx)
+            }
+            // Fallback: take everything from {"tool_calls" to end
+            if depth != 0 {
+                candidates.append(String(text[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines))
+            }
         }
 
         return candidates

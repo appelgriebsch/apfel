@@ -88,6 +88,21 @@ func runToolCallHandlerTests() {
         try assertNil(ToolCallHandler.detectToolCall(in: "``````"))
     }
 
+    test("detects tool call in broken code block with trailing text") {
+        // Model sometimes outputs tool call JSON inside an unclosed code block with extra text
+        let response = "```json\n{\"tool_calls\": [{\"id\": \"call_1\", \"type\": \"function\", \"function\": {\"name\": \"multiply\", \"arguments\": \"{\\\"a\\\": 247, \\\"b\\\": 83}\"}}]}\n20621"
+        let result = ToolCallHandler.detectToolCall(in: response)
+        try assertNotNil(result)
+        try assertEqual(result!.first?.name, "multiply")
+    }
+
+    test("detects tool call with trailing text after JSON") {
+        let response = "Sure, let me calculate that.\n{\"tool_calls\": [{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"add\", \"arguments\": \"{\\\"a\\\": 1, \\\"b\\\": 2}\"}}]}\nHere is the result."
+        let result = ToolCallHandler.detectToolCall(in: response)
+        try assertNotNil(result)
+        try assertEqual(result!.first?.name, "add")
+    }
+
     // MARK: - JSON escaping in buildSystemPrompt
 
     test("buildSystemPrompt escapes special characters in descriptions") {

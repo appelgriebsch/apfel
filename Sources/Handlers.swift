@@ -81,14 +81,18 @@ func handleChatCompletion(_ request: Request, context: some RequestContext) asyn
         contextConfig: contextConfig
     )
 
-    // Inject MCP tools if client didn't send any
+    // Inject MCP tools if client didn't send any; track source for auto-execution
     let effectiveTools: [OpenAITool]?
+    let toolsAreMCPInjected: Bool
     if let clientTools = chatRequest.tools, !clientTools.isEmpty {
         effectiveTools = clientTools
+        toolsAreMCPInjected = false
     } else if let mcp = serverState.mcpManager {
         effectiveTools = await mcp.allTools()
+        toolsAreMCPInjected = true
     } else {
         effectiveTools = chatRequest.tools
+        toolsAreMCPInjected = false
     }
 
     // Build session + extract final prompt via ContextManager (Transcript API)
@@ -125,6 +129,19 @@ func handleChatCompletion(_ request: Request, context: some RequestContext) asyn
     let requestId = "chatcmpl-\(UUID().uuidString.prefix(12).lowercased())"
     let created = Int(Date().timeIntervalSince1970)
 
+    // MCP auto-execute: when tools were server-injected, run model, execute tool calls,
+    // re-prompt for final answer, then deliver as JSON or SSE.
+    if toolsAreMCPInjected {
+        let userPrompt = chatRequest.messages.last(where: { $0.role == "user" })?.textContent ?? finalPrompt
+        let result = try await mcpAutoExecuteResponse(
+            session: session, prompt: finalPrompt, userPrompt: userPrompt,
+            id: requestId, created: created, genOpts: genOpts,
+            promptTokens: promptTokens, streaming: isStreaming,
+            requestBody: requestBodyString, events: events
+        )
+        return (result.response, result.trace)
+    }
+
     if isStreaming {
         let result = streamingResponse(session: session, prompt: finalPrompt,
                                        id: requestId, created: created,
@@ -137,6 +154,122 @@ func handleChatCompletion(_ request: Request, context: some RequestContext) asyn
                                                      genOpts: genOpts, promptTokens: promptTokens,
                                                      requestBody: requestBodyString, events: events)
         return (result.response, result.trace)
+    }
+}
+
+// MARK: - MCP Auto-Execute Response
+
+/// When MCP tools were server-injected, collect the model response, execute any tool calls
+/// via MCPManager, re-prompt for a final text answer, then wrap as JSON or SSE.
+private func mcpAutoExecuteResponse(
+    session: LanguageModelSession,
+    prompt: String,
+    userPrompt: String,
+    id: String,
+    created: Int,
+    genOpts: GenerationOptions,
+    promptTokens: Int,
+    streaming: Bool,
+    requestBody: String?,
+    events: [String]
+) async throws -> (response: Response, trace: ChatRequestTrace) {
+    var events = events
+
+    // Collect full model response (never stream intermediate tool-call output to client)
+    let rawContent: String
+    do {
+        let result = try await session.respond(to: prompt, options: genOpts)
+        rawContent = result.content
+    } catch {
+        let classified = ApfelError.classify(error)
+        let msg = classified.openAIMessage
+        return chatFailure(
+            status: .init(code: classified.httpStatusCode),
+            message: msg,
+            type: classified.openAIType,
+            stream: streaming,
+            requestBody: requestBody,
+            events: events,
+            event: "model error: \(classified.cliLabel)"
+        )
+    }
+
+    // Auto-execute MCP tool calls and re-prompt for plain text answer
+    let content: String
+    if let executed = try await executeMCPToolCalls(
+        in: rawContent, mcpManager: serverState.mcpManager,
+        userPrompt: userPrompt, options: genOpts
+    ) {
+        for log in executed.toolLog {
+            events.append("mcp tool: \(log.name)(\(log.args)) = \(log.isError ? "error: " : "")\(log.result)")
+        }
+        content = executed.content
+        events.append("mcp: auto-executed, final response chars=\(content.count)")
+    } else {
+        content = rawContent
+    }
+
+    let completionTokens = await TokenCounter.shared.count(content)
+    let finishReason = "stop"
+
+    if streaming {
+        // Wrap final content as SSE events: role -> content -> stop -> usage -> [DONE]
+        let chunks: [String] = [
+            sseDataLine(sseRoleChunk(id: id, created: created)),
+            sseDataLine(sseContentChunk(id: id, created: created, content: content)),
+            sseDataLine(ChatCompletionChunk(
+                id: id, object: "chat.completion.chunk", created: created, model: modelName,
+                choices: [.init(index: 0, delta: .init(role: nil, content: nil, tool_calls: nil), finish_reason: finishReason)],
+                usage: nil
+            )),
+            sseDataLine(sseUsageChunk(id: id, created: created, promptTokens: promptTokens, completionTokens: completionTokens)),
+            sseDone,
+        ]
+        let body = chunks.joined()
+        var headers = HTTPFields()
+        headers[.contentType] = "text/event-stream"
+        headers[.cacheControl] = "no-cache"
+        headers[.init("Connection")!] = "keep-alive"
+        let response = Response(status: .ok, headers: headers,
+                                 body: .init(byteBuffer: ByteBuffer(string: body)))
+        return (
+            response,
+            ChatRequestTrace(
+                stream: true,
+                estimatedTokens: promptTokens + completionTokens,
+                error: nil,
+                requestBody: requestBody,
+                responseBody: captureTruncatedLogBody(body, enabled: serverState.config.debug),
+                events: events + ["mcp sse finish_reason=\(finishReason)"]
+            )
+        )
+    } else {
+        let responseMessage = OpenAIMessage(role: "assistant", content: .text(content))
+        let payload = ChatCompletionResponse(
+            id: id,
+            object: "chat.completion",
+            created: created,
+            model: modelName,
+            choices: [.init(index: 0, message: responseMessage, finish_reason: finishReason)],
+            usage: .init(prompt_tokens: promptTokens, completion_tokens: completionTokens,
+                         total_tokens: promptTokens + completionTokens)
+        )
+        let body = jsonString(payload)
+        var headers = HTTPFields()
+        headers[.contentType] = "application/json"
+        let response = Response(status: .ok, headers: headers,
+                                 body: .init(byteBuffer: ByteBuffer(string: body)))
+        return (
+            response,
+            ChatRequestTrace(
+                stream: false,
+                estimatedTokens: promptTokens + completionTokens,
+                error: nil,
+                requestBody: requestBody,
+                responseBody: captureTruncatedLogBody(body, enabled: serverState.config.debug),
+                events: events + ["mcp non-stream finish_reason=\(finishReason)"]
+            )
+        )
     }
 }
 

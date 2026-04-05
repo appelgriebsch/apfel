@@ -61,15 +61,33 @@ func runOpenAIModelsTests() {
 }
 
 func runChatRequestValidatorTests() {
+    let M = ChatRequestValidator.validModel  // "apple-foundationmodel"
+
     test("validator rejects empty messages") {
-        let request = try decode(ChatCompletionRequest.self, from: #"{"model":"apfel","messages":[]}"#)
+        let request = try decode(ChatCompletionRequest.self, from: #"{"model":"\#(M)","messages":[]}"#)
         try assertEqual(ChatRequestValidator.validate(request), .emptyMessages)
+    }
+
+    test("validator rejects invalid model name") {
+        let request = try decode(
+            ChatCompletionRequest.self,
+            from: #"{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}"#
+        )
+        try assertEqual(ChatRequestValidator.validate(request), .invalidModel("gpt-4o"))
+    }
+
+    test("validator accepts valid model name") {
+        let request = try decode(
+            ChatCompletionRequest.self,
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}]}"#
+        )
+        try assertNil(ChatRequestValidator.validate(request))
     }
 
     test("validator rejects unsupported parameters") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"presence_penalty":1}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"presence_penalty":1}"#
         )
         try assertEqual(
             ChatRequestValidator.validate(request),
@@ -80,7 +98,7 @@ func runChatRequestValidatorTests() {
     test("validator allows compatibility no-ops for n=1 and logprobs=false") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"n":1,"logprobs":false}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"n":1,"logprobs":false}"#
         )
         try assertNil(ChatRequestValidator.validate(request))
     }
@@ -88,7 +106,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects assistant as last message") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"assistant","content":"hi"}]}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"assistant","content":"hi"}]}"#
         )
         try assertEqual(ChatRequestValidator.validate(request), .invalidLastRole)
     }
@@ -96,7 +114,7 @@ func runChatRequestValidatorTests() {
     test("validator allows tool as last message") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"tool","tool_call_id":"call_1","name":"lookup","content":"result"}]}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"tool","tool_call_id":"call_1","name":"lookup","content":"result"}]}"#
         )
         try assertNil(ChatRequestValidator.validate(request))
     }
@@ -104,7 +122,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects image content") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image_url"}]}]}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image_url"}]}]}"#
         )
         try assertEqual(ChatRequestValidator.validate(request), .imageContent)
     }
@@ -121,7 +139,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects max_tokens <= 0") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"max_tokens":0}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"max_tokens":0}"#
         )
         if case .invalidParameterValue = ChatRequestValidator.validate(request) { } else {
             throw TestFailure("expected .invalidParameterValue for max_tokens=0")
@@ -131,7 +149,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects negative temperature") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"temperature":-1.0}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"temperature":-1.0}"#
         )
         if case .invalidParameterValue = ChatRequestValidator.validate(request) { } else {
             throw TestFailure("expected .invalidParameterValue for temperature=-1")
@@ -141,7 +159,7 @@ func runChatRequestValidatorTests() {
     test("validator accepts valid max_tokens and temperature") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"max_tokens":100,"temperature":0.7}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"max_tokens":100,"temperature":0.7}"#
         )
         try assertNil(ChatRequestValidator.validate(request))
     }
@@ -149,7 +167,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects x_context_max_turns <= 0") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"x_context_max_turns":0}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"x_context_max_turns":0}"#
         )
         if case .invalidParameterValue = ChatRequestValidator.validate(request) { } else {
             throw TestFailure("expected .invalidParameterValue for x_context_max_turns=0")
@@ -159,7 +177,7 @@ func runChatRequestValidatorTests() {
     test("validator rejects x_context_output_reserve <= 0") {
         let request = try decode(
             ChatCompletionRequest.self,
-            from: #"{"model":"apfel","messages":[{"role":"user","content":"hi"}],"x_context_output_reserve":-1}"#
+            from: #"{"model":"\#(M)","messages":[{"role":"user","content":"hi"}],"x_context_output_reserve":-1}"#
         )
         if case .invalidParameterValue = ChatRequestValidator.validate(request) { } else {
             throw TestFailure("expected .invalidParameterValue for x_context_output_reserve=-1")

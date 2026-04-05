@@ -64,23 +64,20 @@ func singlePrompt(_ prompt: String, systemPrompt: String?, stream: Bool, options
     }
 
     // Tool execution: detect tool call, execute via MCP, then ask model for plain text answer
-    if let mcpManager, let toolCalls = ToolCallHandler.detectToolCall(in: content) {
-        var resultParts: [String] = []
-        for call in toolCalls {
-            do {
-                let result = try await mcpManager.execute(name: call.name, arguments: call.argumentsString)
-                resultParts.append("\(call.name): \(result)")
-                if !quietMode { printStderr("\(styled("tool:", .cyan)) \(call.name)(\(call.argumentsString)) = \(result)") }
-            } catch {
-                resultParts.append("\(call.name): error - \(error)")
-                if !quietMode { printStderr("\(styled("tool:", .red)) \(call.name) failed: \(error)") }
+    if let result = try await executeMCPToolCalls(
+        in: content, mcpManager: mcpManager, userPrompt: prompt,
+        systemPrompt: systemPrompt, options: genOpts
+    ) {
+        content = result.content
+        if !quietMode {
+            for log in result.toolLog {
+                if log.isError {
+                    printStderr("\(styled("tool:", .red)) \(log.name) failed: \(log.result)")
+                } else {
+                    printStderr("\(styled("tool:", .cyan)) \(log.name)(\(log.args)) = \(log.result)")
+                }
             }
         }
-        // Re-prompt WITHOUT tools so model gives a plain text answer
-        let plainSession = makeSession(systemPrompt: systemPrompt)
-        let toolResult = resultParts.joined(separator: "\n")
-        let finalResponse = try await plainSession.respond(to: "The user asked: \(prompt)\n\nThe tool returned: \(toolResult)\n\nAnswer the user's question using this result.", options: genOpts)
-        content = finalResponse.content
     }
 
     switch outputFormat {

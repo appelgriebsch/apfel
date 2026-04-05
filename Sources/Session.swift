@@ -215,6 +215,46 @@ func trimSlidingWindow(
         base: base, history: windowed, final: final, budget: budget)
 }
 
+// MARK: - MCP Tool Execution (shared by CLI and server)
+
+/// Execute MCP tool calls found in model output and re-prompt for a plain text answer.
+/// Returns nil if no tool calls were detected or mcpManager is nil.
+/// Both CLI and server call this to avoid duplicating the detect-execute-reprompt loop.
+func executeMCPToolCalls(
+    in content: String,
+    mcpManager: MCPManager?,
+    userPrompt: String,
+    systemPrompt: String? = nil,
+    options: GenerationOptions
+) async throws -> (content: String, toolLog: [(name: String, args: String, result: String, isError: Bool)])? {
+    guard let mcpManager,
+          let toolCalls = ToolCallHandler.detectToolCall(in: content) else {
+        return nil
+    }
+
+    var resultParts: [String] = []
+    var toolLog: [(name: String, args: String, result: String, isError: Bool)] = []
+    for call in toolCalls {
+        do {
+            let result = try await mcpManager.execute(name: call.name, arguments: call.argumentsString)
+            resultParts.append("\(call.name): \(result)")
+            toolLog.append((name: call.name, args: call.argumentsString, result: result, isError: false))
+        } catch {
+            resultParts.append("\(call.name): error - \(error)")
+            toolLog.append((name: call.name, args: call.argumentsString, result: "\(error)", isError: true))
+        }
+    }
+
+    // Re-prompt WITHOUT tools so model gives a plain text answer
+    let plainSession = makeSession(systemPrompt: systemPrompt)
+    let toolResult = resultParts.joined(separator: "\n")
+    let finalResponse = try await plainSession.respond(
+        to: "The user asked: \(userPrompt)\n\nThe tool returned: \(toolResult)\n\nAnswer the user's question using this result.",
+        options: options
+    )
+    return (content: finalResponse.content, toolLog: toolLog)
+}
+
 // MARK: - Streaming Helper
 
 /// Stream a response, optionally printing deltas to stdout.

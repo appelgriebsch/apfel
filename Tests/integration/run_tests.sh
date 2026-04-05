@@ -11,21 +11,26 @@ echo "Starting server on port 11434..."
 .build/release/apfel --serve --port 11434 &
 SERVER_PID=$!
 
-# Wait for server to be ready
+echo "Starting MCP server on port 11435..."
+.build/release/apfel --serve --port 11435 --mcp mcp/calculator/server.py &
+MCP_SERVER_PID=$!
+
+# Wait for both servers to be ready
 for i in {1..10}; do
-    if curl -s http://localhost:11434/health > /dev/null 2>&1; then
-        echo "Server ready."
+    if curl -s http://localhost:11434/health > /dev/null 2>&1 && \
+       curl -s http://localhost:11435/health > /dev/null 2>&1; then
+        echo "Both servers ready."
         break
     fi
     sleep 1
 done
 
 echo "Running tests..."
-python3 -m pytest Tests/integration/cli_e2e_test.py Tests/integration/performance_test.py Tests/integration/openai_client_test.py Tests/integration/openapi_spec_test.py Tests/integration/security_test.py -v
+python3 -m pytest Tests/integration/cli_e2e_test.py Tests/integration/performance_test.py Tests/integration/openai_client_test.py Tests/integration/openapi_spec_test.py Tests/integration/security_test.py Tests/integration/mcp_server_test.py -v
 TEST_EXIT=$?
 
-echo "Stopping server..."
-kill $SERVER_PID 2>/dev/null || true
-wait $SERVER_PID 2>/dev/null || true
+echo "Stopping servers..."
+kill $SERVER_PID $MCP_SERVER_PID 2>/dev/null || true
+wait $SERVER_PID $MCP_SERVER_PID 2>/dev/null || true
 
 exit $TEST_EXIT

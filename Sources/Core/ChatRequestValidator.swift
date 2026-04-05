@@ -55,6 +55,7 @@ public enum ChatRequestValidationFailure: Sendable, Equatable {
     case invalidLastRole
     case imageContent
     case invalidParameterValue(String)
+    case invalidModel(String)
 
     public var message: String {
         switch self {
@@ -68,6 +69,8 @@ public enum ChatRequestValidationFailure: Sendable, Equatable {
             return "Image content is not supported by the Apple on-device model"
         case .invalidParameterValue(let detail):
             return detail
+        case .invalidModel(let model):
+            return "The model '\(model)' does not exist. The only available model is 'apple-foundationmodel'."
         }
     }
 
@@ -83,14 +86,23 @@ public enum ChatRequestValidationFailure: Sendable, Equatable {
             return "rejected: image content"
         case .invalidParameterValue(let detail):
             return "validation failed: \(detail)"
+        case .invalidModel(let model):
+            return "validation failed: unknown model \(model)"
         }
     }
 }
 
 public enum ChatRequestValidator {
+    /// The only model name this server accepts.
+    public static let validModel = "apple-foundationmodel"
+
     public static func validate(_ request: ChatCompletionRequest) -> ChatRequestValidationFailure? {
         guard !request.messages.isEmpty else {
             return .emptyMessages
+        }
+
+        if request.model != validModel {
+            return .invalidModel(request.model)
         }
 
         if let unsupported = UnsupportedChatParameter.detect(in: request) {

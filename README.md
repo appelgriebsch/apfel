@@ -1,6 +1,6 @@
 # apfel
 
-[![Version 0.9.12](https://img.shields.io/badge/version-0.9.12-blue)](https://github.com/Arthur-Ficial/apfel)
+[![Version 0.9.0](https://img.shields.io/badge/version-0.9.0-blue)](https://github.com/Arthur-Ficial/apfel)
 [![Swift 6.3+](https://img.shields.io/badge/Swift-6.3%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)](https://developer.apple.com/macos/)
 [![No Xcode Required](https://img.shields.io/badge/Xcode-not%20required-orange)](https://developer.apple.com/xcode/resources/)
@@ -124,9 +124,11 @@ print(resp.choices[0].message.content)
 ```bash
 apfel --chat
 apfel --chat -s "You are a helpful coding assistant"
+apfel --chat --mcp ./mcp/calculator/server.py      # chat with MCP tools
+apfel --chat --debug                                # debug output to stderr
 ```
 
-Context window is managed automatically with configurable strategies:
+Ctrl-C exits cleanly. Context window is managed automatically with configurable strategies:
 
 ```bash
 apfel --chat --context-strategy newest-first     # default: keep recent turns
@@ -575,8 +577,7 @@ swift build                              # quick debug build
 
 # Tests
 swift run apfel-tests                    # pure Swift unit tests (no XCTest needed)
-apfel --serve --debug &                  # start server for integration tests
-python3 -m pytest Tests/integration/ -v  # integration tests (requires server)
+python3 -m pytest Tests/integration/ -v  # integration tests (auto-starts servers)
 apfel --benchmark -o json                # performance report from the installed binary
 make benchmark                           # same benchmark via Makefile
 ```

@@ -58,6 +58,7 @@ public struct CLIArguments: Sendable, Equatable {
 
     public var mcpServerPaths: [String] = []
     public var mcpTimeoutSeconds: Int = 5
+    public var mcpBearerToken: String? = nil
 
     // MARK: - Generation
 
@@ -114,10 +115,10 @@ extension CLIArguments {
         result.serverPort = Int(env["APFEL_PORT"] ?? "") ?? 11434
         result.serverHost = env["APFEL_HOST"] ?? "127.0.0.1"
         result.serverToken = env["APFEL_TOKEN"]
-        result.mcpServerPaths = env["APFEL_MCP"]?
-            .split(separator: ":").map(String.init).filter { !$0.isEmpty } ?? []
+        result.mcpServerPaths = env["APFEL_MCP"].map { parseMCPServerPaths($0) } ?? []
         result.mcpTimeoutSeconds = Int(env["APFEL_MCP_TIMEOUT"] ?? "")
             .flatMap { $0 > 0 ? min($0, 300) : nil } ?? 5
+        result.mcpBearerToken = env["APFEL_MCP_TOKEN"].flatMap { $0.isEmpty ? nil : $0 }
         result.temperature = Double(env["APFEL_TEMPERATURE"] ?? "")
         result.maxTokens = Int(env["APFEL_MAX_TOKENS"] ?? "").flatMap { $0 > 0 ? $0 : nil }
         result.contextStrategy = env["APFEL_CONTEXT_STRATEGY"].flatMap { ContextStrategy(rawValue: $0) }
@@ -289,6 +290,13 @@ extension CLIArguments {
                 }
                 result.mcpTimeoutSeconds = min(t, 300)
 
+            case "--mcp-token":
+                i += 1
+                guard i < args.count else {
+                    throw CLIParseError("--mcp-token requires a token value")
+                }
+                result.mcpBearerToken = args[i]
+
             // -- Generation --
 
             case "--temperature":
@@ -379,6 +387,43 @@ extension CLIArguments {
     }
 
     // MARK: - Helpers
+
+    /// Parse a colon- or comma-separated list of MCP server paths/URLs.
+    ///
+    /// Commas are the canonical separator and always work, including with
+    /// http(s):// URLs. Colons work only for local paths (legacy); URL schemes
+    /// are reassembled to avoid splitting "https://host:8080/mcp" incorrectly.
+    private static func parseMCPServerPaths(_ value: String) -> [String] {
+        if value.contains(",") {
+            return value.split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        }
+        let parts = value.split(separator: ":").map(String.init).filter { !$0.isEmpty }
+        var result: [String] = []
+        var i = parts.startIndex
+        while i < parts.endIndex {
+            let part = parts[i]
+            let next = parts.index(after: i)
+            if (part == "http" || part == "https"),
+               next < parts.endIndex,
+               parts[next].hasPrefix("//") {
+                var url = part + ":" + parts[next]
+                var j = parts.index(after: next)
+                while j < parts.endIndex, !parts[j].hasPrefix("//"),
+                      parts[j] != "http", parts[j] != "https" {
+                    url += ":" + parts[j]
+                    j = parts.index(after: j)
+                }
+                result.append(url)
+                i = j
+            } else {
+                result.append(part)
+                i = parts.index(after: i)
+            }
+        }
+        return result.filter { !$0.isEmpty }
+    }
 
     private static func parseAllowedOrigins(_ value: String) -> [String] {
         value.split(separator: ",")

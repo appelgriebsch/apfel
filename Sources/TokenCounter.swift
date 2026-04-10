@@ -6,6 +6,7 @@
 
 import Foundation
 import FoundationModels
+import ApfelCore
 
 actor TokenCounter {
     static let shared = TokenCounter()
@@ -39,6 +40,30 @@ actor TokenCounter {
     /// Whether the model is available for generation.
     var isAvailable: Bool {
         model.isAvailable
+    }
+
+    /// Current availability as our pure ApfelCore enum. Adapts Apple's
+    /// `SystemLanguageModel.Availability` into our `ModelAvailability`
+    /// so the rest of apfel can reason about the specific unavailable
+    /// reason without depending on FoundationModels.
+    var availability: ModelAvailability {
+        switch model.availability {
+        case .available:
+            return .available
+        case .unavailable(let reason):
+            switch reason {
+            case .appleIntelligenceNotEnabled:
+                return .appleIntelligenceNotEnabled
+            case .deviceNotEligible:
+                return .deviceNotEligible
+            case .modelNotReady:
+                return .modelNotReady
+            @unknown default:
+                return .unknownUnavailable
+            }
+        @unknown default:
+            return .unknownUnavailable
+        }
     }
 
     /// Supported languages as locale identifier strings.

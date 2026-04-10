@@ -84,6 +84,7 @@ suite("RetryTests") { runRetryTests() }
 suite("DebugLoggerTests") { runDebugLoggerTests() }
 suite("BufferedLineReaderTests") { runBufferedLineReaderTests() }
 suite("CLIArgumentsTests") { runCLIArgumentsTests() }
+suite("ModelAvailabilityTests") { runModelAvailabilityTests() }
 
 // MARK: - Summary
 

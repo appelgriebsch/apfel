@@ -162,14 +162,20 @@ let serverAllowedOrigins: [String] = {
     return origins
 }()
 
-// Check model availability for modes that need it.
+// Check model availability for modes that need it. If unavailable, surface
+// the specific reason (appleIntelligenceNotEnabled / deviceNotEligible /
+// modelNotReady) so users know exactly what to fix. See #59.
 switch parsed.mode {
 case .modelInfo, .serve, .update:
     break
 default:
-    let available = await TokenCounter.shared.isAvailable
-    if !available {
-        printError("Apple Intelligence is not enabled or model is not ready. Run: apfel --model-info")
+    let availability = await TokenCounter.shared.availability
+    if !availability.isAvailable {
+        printError("Model unavailable: \(availability.shortLabel)")
+        printStderr("")
+        printStderr(availability.remediation)
+        printStderr("")
+        printStderr("For full diagnostic info run: apfel --model-info")
         exit(exitModelUnavailable)
     }
 }

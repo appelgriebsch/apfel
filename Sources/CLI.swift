@@ -263,19 +263,29 @@ func truncateTranscript(_ transcript: Transcript, budget: Int, config: ContextCo
 /// Print model information and exit.
 func printModelInfo() async {
     let tc = TokenCounter.shared
-    let available = await tc.isAvailable
+    let availability = await tc.availability
     let contextSize = await tc.contextSize
     let languages = await tc.supportedLanguages
+
+    let availabilityLine = availability.isAvailable
+        ? styled(availability.shortLabel, .green)
+        : styled(availability.shortLabel, .red)
 
     print("""
     \(styled("apfel", .cyan, .bold)) v\(version) — model info
     \(styled("├", .dim)) model:      \(modelName)
     \(styled("├", .dim)) on-device:  true (always)
-    \(styled("├", .dim)) available:  \(available ? styled("yes", .green) : styled("no", .red))
+    \(styled("├", .dim)) available:  \(availabilityLine)
     \(styled("├", .dim)) context:    \(contextSize) tokens
     \(styled("├", .dim)) languages:  \(languages.joined(separator: ", "))
     \(styled("└", .dim)) framework:  FoundationModels (macOS 26+)
     """)
+
+    if !availability.isAvailable {
+        print("")
+        print(styled("How to fix:", .yellow, .bold))
+        print(availability.remediation)
+    }
 }
 
 // MARK: - Release Info

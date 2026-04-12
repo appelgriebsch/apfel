@@ -272,72 +272,33 @@ Do not approve code PRs with P0 findings. For docs-only PRs, a request-changes o
 
 ## Publishing a Release
 
-### Preferred: GitHub Actions (fully automated)
-
-The **Publish Release** workflow handles everything end-to-end:
-
-1. Go to **Actions** tab in `Arthur-Ficial/apfel`
-2. Run **Publish Release**, choose `patch`, `minor`, or `major`
-3. The workflow will:
-   - Bump `.version` via `make build` / `make release-minor` / `make release-major`
-   - Build the release binary on `macos-26`
-   - Run unit tests (`swift run apfel-tests`)
-   - Commit `.version`, `README.md`, `Sources/BuildInfo.swift` and push to `main`
-   - Create a git tag (`v<version>`) and push it
-   - Package `apfel-<version>-arm64-macos.tar.gz` and publish a GitHub Release
-   - Clone `Arthur-Ficial/homebrew-tap`, regenerate `Formula/apfel.rb` with the new URL + SHA256, commit and push
-4. After the workflow completes, verify: `brew update && brew upgrade apfel && brew test apfel`
-
-This is the preferred path for all releases. One click, fully tested, tap updated automatically.
-
-### Fallback: manual local release
-
-Use this only if the GitHub Actions runner is broken or you need to release from local changes that aren't pushed yet.
+**MANDATORY: always use the automated workflow.** No manual releases. No exceptions. One command does everything.
 
 ```bash
-# 1. Build and install (auto-bumps patch version)
-make install                           # bumps .version, builds release, installs to /usr/local/bin
-
-# 2. Run ALL tests - no exceptions, no skips
-swift run apfel-tests                  # unit tests (must be 188+)
-# Start both servers for integration tests:
-apfel --serve --port 11434 &
-apfel --serve --port 11435 --mcp mcp/calculator/server.py &
-sleep 3
-python3 -m pytest Tests/integration/ -v   # integration tests (must be 139+, 0 skipped)
-pkill -f "apfel --serve"
-
-# 3. Package the release asset
-make package-release-asset             # creates apfel-<version>-arm64-macos.tar.gz
-make print-release-sha256              # SHA256 for homebrew formula
-
-# 4. Commit, tag, push
-git add .version README.md Sources/BuildInfo.swift <changed source files>
-git commit -m "release: apfel v<version> - <summary>"
-git tag -a "v<version>" -m "v<version>"
-git push origin main
-git push origin "v<version>"
-
-# 5. Create GitHub Release
-gh release create "v<version>" "apfel-<version>-arm64-macos.tar.gz" \
-  --repo Arthur-Ficial/apfel \
-  --title "v<version>" \
-  --notes "Release notes here"
-
-# 6. Update homebrew tap
-git clone git@github.com:Arthur-Ficial/homebrew-tap.git /tmp/homebrew-tap
-./scripts/write-homebrew-formula.sh \
-  --version "<version>" \
-  --sha256 "<sha256 from step 3>" \
-  --output "/tmp/homebrew-tap/Formula/apfel.rb"
-cd /tmp/homebrew-tap && git add Formula/apfel.rb && git commit -m "apfel v<version>" && git push
-
-# 7. Verify brew install
-brew update
-brew reinstall Arthur-Ficial/tap/apfel
-brew test Arthur-Ficial/tap/apfel
-apfel --version                        # must show the new version
+make release                    # patch bump (0.9.17 -> 0.9.18)
+make release TYPE=minor         # minor bump (0.9.x -> 0.10.0)
+make release TYPE=major         # major bump (0.x.y -> 1.0.0)
 ```
+
+This triggers the **Publish Release** GitHub Actions workflow which runs on `macos-26` and does ALL of the following in order, with zero human intervention:
+
+1. Bumps `.version` via `make build` / `make release-minor` / `make release-major`
+2. Builds the release binary
+3. Runs unit tests (`swift run apfel-tests`)
+4. Commits `.version`, `README.md`, `Sources/BuildInfo.swift` and pushes to `main`
+5. Creates a git tag (`v<version>`) and pushes it
+6. Packages `apfel-<version>-arm64-macos.tar.gz` and publishes a GitHub Release
+7. Clones `Arthur-Ficial/homebrew-tap`, regenerates `Formula/apfel.rb` with new URL + SHA256, commits and pushes
+
+After the workflow completes (~3 min), verify locally:
+
+```bash
+brew update && brew upgrade apfel && brew test apfel && apfel --version
+```
+
+**Do NOT manually run `make install`, `make package-release-asset`, `git tag`, `gh release create`, or push to the Homebrew tap.** The workflow does all of it. Manual steps create version drift, duplicate tags, and half-updated taps. If the workflow fails, fix the workflow - don't work around it.
+
+The workflow source is `.github/workflows/publish-release.yml`. The `HOMEBREW_TAP_PUSH_TOKEN` secret must exist on `Arthur-Ficial/apfel` (fine-grained token with Contents R/W on `Arthur-Ficial/homebrew-tap`).
 
 ### Integration test rules
 

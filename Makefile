@@ -2,7 +2,7 @@ PREFIX ?= /usr/local
 BINARY = apfel
 VERSION_FILE = .version
 
-.PHONY: check-toolchain build install uninstall clean bump-patch bump-minor bump-major generate-build-info update-readme version release-minor release-major package-release-asset print-release-asset print-release-sha256 update-homebrew-formula benchmark
+.PHONY: check-toolchain build install uninstall clean bump-patch bump-minor bump-major generate-build-info update-readme version release release-minor release-major package-release-asset print-release-asset print-release-sha256 update-homebrew-formula benchmark
 
 # --- Environment checks ---
 
@@ -114,6 +114,22 @@ update-readme:
 	@v=$$(cat $(VERSION_FILE)); \
 	sed -i '' 's/Version [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*/Version '"$$v"'/' README.md; \
 	sed -i '' 's/version-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-blue/version-'"$$v"'-blue/' README.md
+
+# --- One-command release (triggers GitHub Actions) ---
+# Usage:
+#   make release              # patch bump (default)
+#   make release TYPE=minor   # minor bump
+#   make release TYPE=major   # major bump
+TYPE ?= patch
+release:
+	@echo "Triggering Publish Release workflow ($(TYPE))..."
+	@gh workflow run publish-release.yml --field release_type=$(TYPE) --repo Arthur-Ficial/apfel
+	@echo ""
+	@echo "Workflow dispatched. Monitor at:"
+	@echo "  https://github.com/Arthur-Ficial/apfel/actions/workflows/publish-release.yml"
+	@echo ""
+	@echo "After it completes (~3 min), verify:"
+	@echo "  brew update && brew upgrade apfel && brew test apfel && apfel --version"
 
 # --- Utilities ---
 

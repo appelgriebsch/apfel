@@ -50,10 +50,14 @@ func runApfelCorePublicAPIUsageTests() {
             let _: String = e.openAIMessage
             let _: Int    = e.httpStatusCode
             let _: Bool   = e.isRetryable
+            let _: String = e.description
+            let _: String = e.debugDescription
+            let _: String? = e.errorDescription
             let _ = requireSendable(e)
         }
         // Equatable is public.
         try assertEqual(ApfelError.rateLimited, ApfelError.rateLimited)
+        let _: Set<ApfelError> = [.rateLimited, .contextOverflow]
         // classify(_:) is public static.
         let classified = ApfelError.classify(MCPError.timedOut("x"))
         if case .toolExecution = classified { } else {
@@ -133,6 +137,7 @@ func runApfelCorePublicAPIUsageTests() {
         // MessageContent cases
         let _: MessageContent = .text("x")
         let _: MessageContent = .parts([ContentPart(type: "text", text: "a")])
+        let _: Set<MessageContent> = [.text("x")]
 
         // ContentPart
         let part = ContentPart(type: "text", text: "x")
@@ -161,6 +166,7 @@ func runApfelCorePublicAPIUsageTests() {
         let _: String?          = tool.function.description
         let _: RawJSON?         = tool.function.parameters
         let _ = requireSendable(tool)
+        let _: Set<OpenAITool> = [tool]
 
         // RawJSON
         let raw = RawJSON(rawValue: "{}")
@@ -172,25 +178,31 @@ func runApfelCorePublicAPIUsageTests() {
         let _: ToolChoice = .none
         let _: ToolChoice = .required
         let _: ToolChoice = .specific(name: "x")
+        let _: Set<ToolChoice> = [.auto, .required]
 
-        // ResponseFormat (Decodable-only, so construct via JSON)
-        let fmt = try JSONDecoder().decode(
-            ResponseFormat.self, from: Data(#"{"type":"text"}"#.utf8)
-        )
+        // ResponseFormat
+        let fmt = ResponseFormat(type: "text")
         let _: String = fmt.type
         let _ = requireSendable(fmt)
-
-        // StreamOptions (Decodable-only, construct via JSON)
-        let opts = try JSONDecoder().decode(
-            StreamOptions.self, from: Data(#"{"include_usage":true}"#.utf8)
+        let _: Set<ResponseFormat> = [fmt]
+        try assertEqual(
+            try JSONDecoder().decode(ResponseFormat.self, from: Data(#"{"type":"text"}"#.utf8)),
+            fmt
         )
+
+        // StreamOptions
+        let opts = StreamOptions(include_usage: true)
         let _: Bool? = opts.include_usage
         let _ = requireSendable(opts)
+        try assertEqual(
+            try JSONDecoder().decode(StreamOptions.self, from: Data(#"{"include_usage":true}"#.utf8)),
+            opts
+        )
 
-        // ChatCompletionRequest (Decodable-only)
-        let req = try JSONDecoder().decode(
-            ChatCompletionRequest.self,
-            from: Data(#"{"model":"apple-foundationmodel","messages":[{"role":"user","content":"hi"}]}"#.utf8)
+        // ChatCompletionRequest
+        let req = ChatCompletionRequest(
+            model: "apple-foundationmodel",
+            messages: [OpenAIMessage(role: "user", content: .text("hi"))]
         )
         let _: String              = req.model
         let _: [OpenAIMessage]     = req.messages
@@ -212,6 +224,14 @@ func runApfelCorePublicAPIUsageTests() {
         let _: Int?                = req.x_context_max_turns
         let _: Int?                = req.x_context_output_reserve
         let _ = requireSendable(req)
+        let _: Set<ChatCompletionRequest> = [req]
+        try assertEqual(
+            try JSONDecoder().decode(
+                ChatCompletionRequest.self,
+                from: Data(#"{"model":"apple-foundationmodel","messages":[{"role":"user","content":"hi"}]}"#.utf8)
+            ),
+            req
+        )
     }
 
     // MARK: - ChatRequestValidator surface
@@ -227,8 +247,11 @@ func runApfelCorePublicAPIUsageTests() {
             let _: String = p.name
             let _: String = p.message
             let _: String = p.rawValue  // RawValue: String is public
+            let _: String = p.description
+            let _: String = p.debugDescription
             let _ = requireSendable(p)
         }
+        let _: Set<UnsupportedChatParameter> = [.logprobs, .stop]
 
         // ChatRequestValidationFailure cases
         let failures: [ChatRequestValidationFailure] = [
@@ -242,8 +265,11 @@ func runApfelCorePublicAPIUsageTests() {
         for f in failures {
             let _: String = f.message
             let _: String = f.event
+            let _: String = f.description
+            let _: String = f.debugDescription
             let _ = requireSendable(f)
         }
+        let _: Set<ChatRequestValidationFailure> = [.emptyMessages, .invalidLastRole]
 
         // validate(_:) and detect(in:) are public
         let req = try JSONDecoder().decode(
@@ -254,21 +280,17 @@ func runApfelCorePublicAPIUsageTests() {
         let _: UnsupportedChatParameter?     = UnsupportedChatParameter.detect(in: req)
     }
 
-    // MARK: - BodyLimits
-
-    test("BodyLimits public constants compile") {
-        let _: Int = BodyLimits.maxRequestBodyBytes
-        let _: Int = BodyLimits.defaultOutputReserveTokens
-    }
-
     // MARK: - FinishReason / FinishReasonResolver
 
     test("FinishReason and FinishReasonResolver public surface compiles") {
         let cases: [FinishReason] = [.stop, .length, .toolCalls]
         for c in cases {
             let _: String = c.openAIValue
+            let _: String = c.description
+            let _: String = c.debugDescription
             let _ = requireSendable(c)
         }
+        let _: Set<FinishReason> = [.stop, .toolCalls]
         let r = FinishReasonResolver.resolve(hasToolCalls: false, completionTokens: 0, maxTokens: nil)
         try assertEqual(r, .stop)
     }
@@ -282,25 +304,12 @@ func runApfelCorePublicAPIUsageTests() {
         let _ = requireSendable(resolved)
     }
 
-    // MARK: - Concurrency primitives
+    // MARK: - StreamCleanup
 
-    testAsync("StreamCleanup / StreamTaskBox / TraceBuffer public surface compiles") {
+    testAsync("StreamCleanup public surface compiles") {
         let c = StreamCleanup()
         await c.run { }
         let _ = requireSendable(c)
-
-        let box = StreamTaskBox()
-        let t: Task<Void, Never> = Task { }
-        box.set(t)
-        box.cancel()
-        let _: Int = box.taskCount
-        let _ = requireSendable(box)
-
-        let buf = TraceBuffer(events: [])
-        await buf.append("x")
-        let snap: [String] = await buf.snapshot()
-        try assertEqual(snap, ["x"])
-        let _ = requireSendable(buf)
     }
 
     // MARK: - ContextStrategy / ContextConfig
@@ -312,6 +321,7 @@ func runApfelCorePublicAPIUsageTests() {
         let _: ContextStrategy = .summarize
         let _: ContextStrategy = .strict
         let _: [ContextStrategy] = ContextStrategy.allCases
+        let _: Set<ContextStrategy> = [.strict, .summarize]
 
         let cfg = ContextConfig(
             strategy: .slidingWindow,
@@ -326,15 +336,7 @@ func runApfelCorePublicAPIUsageTests() {
         let _ = requireSendable(cfg)
         let _: ContextConfig   = ContextConfig.defaults
         try assertEqual(ContextConfig.defaults.strategy, .newestFirst)
-    }
-
-    // MARK: - Global debug flag
-
-    test("apfelDebugEnabled is a public Bool with sync read/write") {
-        let original = apfelDebugEnabled
-        defer { apfelDebugEnabled = original }
-        apfelDebugEnabled = true
-        try assertEqual(apfelDebugEnabled, true)
+        let _: Set<ContextConfig> = [cfg, .defaults]
     }
 
     // MARK: - JSONFenceStripper
@@ -366,8 +368,11 @@ func runApfelCorePublicAPIUsageTests() {
             let _: Bool   = m.isAvailable
             let _: String = m.shortLabel
             let _: String = m.remediation
+            let _: String = m.description
+            let _: String = m.debugDescription
             let _ = requireSendable(m)
         }
+        let _: Set<ModelAvailability> = [.available, .deviceNotEligible]
         try assertTrue(ModelAvailability.available.isAvailable)
     }
 
@@ -421,6 +426,7 @@ func runApfelCorePublicAPIUsageTests() {
         if case .object = parsed { } else {
             throw TestFailure("expected object IR at root")
         }
+        let _: Set<SchemaIR> = [parsed]
 
         // SchemaParser.Error cases
         let errs: [SchemaParser.Error] = [
@@ -429,7 +435,7 @@ func runApfelCorePublicAPIUsageTests() {
         try assertEqual(errs.count, 3)
     }
 
-    // MARK: - ToolCallHandler (+ helper types)
+    // MARK: - ToolCallHandler
 
     test("ToolCallHandler public surface compiles") {
         let def = ToolDef(name: "f", description: "d", parametersJSON: "{}")
@@ -437,19 +443,6 @@ func runApfelCorePublicAPIUsageTests() {
         let _: String? = def.description
         let _: String? = def.parametersJSON
         let _ = requireSendable(def)
-
-        let log = ToolLogEntry(name: "f", args: "{}", result: "ok", isError: false)
-        let _: String = log.name
-        let _: String = log.args
-        let _: String = log.result
-        let _: Bool   = log.isError
-        try assertEqual(log, log)
-        let _ = requireSendable(log)
-
-        let result = ProcessPromptResult(content: "out", toolLog: [log])
-        let _: String          = result.content
-        let _: [ToolLogEntry]  = result.toolLog
-        let _ = requireSendable(result)
 
         let instructions = ToolCallHandler.buildOutputFormatInstructions(toolNames: ["f"])
         try assertTrue(instructions.contains("Tool Calling Format"))

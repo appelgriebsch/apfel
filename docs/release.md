@@ -2,7 +2,7 @@
 
 ## Overview
 
-apfel uses semantic versioning. Releases are fully automated through GitHub Actions. Local builds (`make build`, `make install`) never change the version number.
+apfel uses semantic versioning. Releases are fully automated through the local `make release` workflow. Local builds (`make build`, `make install`) never change the version number.
 
 ## The release flow
 
@@ -10,16 +10,16 @@ apfel uses semantic versioning. Releases are fully automated through GitHub Acti
 make preflight              local qualification (git, build, tests, policy files)
        |
        v pass
-make release [TYPE=]        dispatch GitHub Actions
+make release [TYPE=]        run local release workflow
        |
-       v workflow runs on macos-26
+       v on-device release machine
   bump .version
        |
   build release binary
        |
-  unit tests (335+)
+  unit tests
        |
-  integration tests (7 suites)
+  integration tests
        |
   commit + tag + push
        |
@@ -41,12 +41,18 @@ The preflight script checks:
 - Git working tree is clean
 - On main branch, up to date with origin
 - Release build succeeds
-- Unit tests pass (335+)
-- Integration tests pass (7 suites: cli_e2e, performance, openai_client, openapi_spec, security, mcp_server, openapi_conformance)
+- Unit tests pass
+- Integration tests pass
 - SECURITY.md, STABILITY.md, LICENSE exist
 - Binary version matches .version
 
 Do not release if preflight fails.
+
+Before cutting a release, review whether the branch changes the public `ApfelCore` Swift Package API.
+
+- Additive `ApfelCore` API changes belong in [../CHANGELOG.md](../CHANGELOG.md) and require at least a minor bump.
+- Deprecated or removed `ApfelCore` API changes belong in [../CHANGELOG.md](../CHANGELOG.md) and require the deprecation policy from [../STABILITY.md](../STABILITY.md) to be followed.
+- Any removal or incompatible signature change to public `ApfelCore` API is a major release.
 
 ## Release commands
 
@@ -63,8 +69,8 @@ This runs locally via `scripts/publish-release.sh` (not on GitHub Actions - GitH
 1. Preflight checks (clean tree, on main, up to date with origin)
 2. Bumps `.version` via `make release-patch` / `release-minor` / `release-major`
 3. Builds the release binary
-4. Runs ALL 362 unit tests
-5. Runs ALL 7 integration test suites (157 tests, 0 skipped) with real Apple Intelligence
+4. Runs all unit tests via `swift run apfel-tests`
+5. Runs all integration tests discovered under `Tests/integration/` with real Apple Intelligence
 6. Commits `.version`, `README.md`, `Sources/BuildInfo.swift`, tags, and pushes to main
 7. Packages `apfel-<version>-arm64-macos.tar.gz`
 8. Publishes GitHub Release with changelog and tarball
@@ -97,10 +103,10 @@ The release workflow also updates the custom tap (`Arthur-Ficial/homebrew-tap`) 
 ## GitHub CI vs local testing
 
 GitHub CI (`ci.yml`) runs on every push/PR as a safety net, but it is a **subset**:
-- 362 unit tests (no model needed)
-- 21 model-free CLI integration tests (flags, help, version, file handling)
+- Unit tests that do not need Apple Intelligence
+- Model-free integration checks such as flags, help, version, file handling, man-page drift, and ApfelCore packaging smoke tests
 
-GitHub CI **cannot** run the full integration suite because GitHub-hosted `macos-26` runners are Intel Macs without Apple Intelligence. The full 519-test qualification (362 unit + 157 integration across 7 suites) runs locally on a Mac with Apple Intelligence via `make preflight` and `make release`. This local run is the real gate - no release ships without it.
+GitHub CI **cannot** run the full integration suite because GitHub-hosted `macos-26` runners are Intel Macs without Apple Intelligence. Full qualification runs locally on a Mac with Apple Intelligence via `make preflight` and `make release`. This local run is the real gate - no release ships without it.
 
 ## Distribution channels
 
@@ -119,8 +125,8 @@ All three channels are "owned" in the sense that we file PRs against them and re
 apfel follows semver. See [STABILITY.md](../STABILITY.md) for the full stability policy.
 
 - **PATCH** (1.0.x): bug fixes, documentation, CI improvements
-- **MINOR** (1.x.0): new flags, new endpoints, backward-compatible features
-- **MAJOR** (x.0.0): removed flags, changed exit codes, breaking API changes
+- **MINOR** (1.x.0): new flags, new endpoints, backward-compatible features, additive public `ApfelCore` API
+- **MAJOR** (x.0.0): removed flags, changed exit codes, breaking API changes, removed or incompatible public `ApfelCore` API
 
 Model output changes from macOS updates are NOT version bumps.
 

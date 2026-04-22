@@ -243,7 +243,7 @@ apfel --mcp /path/to/local.py --mcp https://remote.example.com/v1 "..."
 
 **apfel has no config file of its own, by design.** It is a pure UNIX-style tool: flags + env vars + stdin/stdout. Config belongs in the shell (`export APFEL_MCP=...`), in shell aliases, in your `.envrc`, or in systemd/launchd units - the same places every other UNIX CLI's config lives. Keeping apfel flag-driven means it composes cleanly with pipes, shell scripts, Docker, CI runners, and anything else that already understands env vars.
 
-For users who outgrow that (many MCPs, multi-profile workflows, team configs checked into git), [**apfel-run**](https://github.com/Arthur-Ficial/apfel-run) is an optional MIT wrapper that adds a proper config layer. TOML-based, XDG-compliant file discovery, profiles, schema validation, `execve`-based drop-in replacement for the `apfel` binary.
+If you want a config file anyway (many MCPs, multi-profile workflows, team configs checked into git), [**apfel-run**](https://github.com/Arthur-Ficial/apfel-run) is an optional MIT wrapper that adds one. TOML-based, XDG-compliant file discovery, profiles, schema validation, `execve`-based drop-in replacement for the `apfel` binary.
 
 ```bash
 brew install Arthur-Ficial/tap/apfel-run

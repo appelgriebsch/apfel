@@ -22,15 +22,13 @@ brew install Arthur-Ficial/tap/apfel
 
 No build tools needed. See [brew-install.md](brew-install.md) for troubleshooting.
 
-## Option 2: Nix (nixpkgs) - pending
-
-The initial nixpkgs submission ([NixOS/nixpkgs#510089](https://github.com/NixOS/nixpkgs/pull/510089)) is under upstream review and not yet merged. Once it lands:
+## Option 2: Nix (nixpkgs)
 
 ```bash
-nix profile install nixpkgs#apfel-ai
+nix profile install nixpkgs#apfel-llm
 ```
 
-Attribute name is `apfel-ai` because nixpkgs already has an unrelated `apfel` package (a particle-physics PDF library); the binary on `$PATH` is still `apfel`. See [docs/nixpkgs.md](nixpkgs.md) for automation details and tracking issue [#88](https://github.com/Arthur-Ficial/apfel/issues/88) for current status.
+Attribute name is `apfel-llm` because nixpkgs already has an unrelated `apfel` package (a particle-physics PDF library); the binary on `$PATH` is still `apfel`. The package landed via [NixOS/nixpkgs#508084](https://github.com/NixOS/nixpkgs/pull/508084). See [docs/nixpkgs.md](nixpkgs.md) for automation details.
 
 ## Option 3: Build from source
 

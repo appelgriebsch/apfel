@@ -86,7 +86,7 @@ HTTP Server (/v1/*) ───────┘   ContextManager → Transcript API
 
 - Version: `1.0.0` (source of truth: `.version`)
 - Tests: 366 unit + 220 integration
-- Distribution: homebrew-core (`brew install apfel`), nixpkgs (`nix profile install nixpkgs#apfel-ai`), and the Arthur-Ficial/homebrew-tap
+- Distribution: homebrew-core (`brew install apfel`), nixpkgs (`nix profile install nixpkgs#apfel-llm`), and the Arthur-Ficial/homebrew-tap
 - Stability policy: [STABILITY.md](STABILITY.md)
 - Security policy: [SECURITY.md](SECURITY.md)
 
@@ -328,7 +328,7 @@ apfel ships through three channels. All pull the same signed tarball from each G
 
 - **homebrew-core** - `brew install apfel`. Autobump detects new releases; latency ~24h. We do not maintain the formula.
 - **Arthur-Ficial/homebrew-tap** - `brew install Arthur-Ficial/tap/apfel`. Synchronous, pushed as part of `make release`. Secondary channel; also houses apfel-family tools (apfel-chat, apfel-clip, apfel-mcp, etc.).
-- **nixpkgs** - `nix profile install nixpkgs#apfel-ai`. Name is `apfel-ai` because nixpkgs already has an unrelated physics `apfel`. Two-layer automation: community r-ryantm bot (~weekly) plus our `.github/workflows/bump-nixpkgs.yml` on every release (~5 min). See [docs/nixpkgs.md](docs/nixpkgs.md). Requires the `NIXPKGS_BUMP_PAT` repo secret.
+- **nixpkgs** - `nix profile install nixpkgs#apfel-llm`. Name is `apfel-llm` because nixpkgs already has an unrelated physics `apfel` package and the disambiguator landed upstream as `apfel-llm` (PR NixOS/nixpkgs#508084). Two-layer automation: community r-ryantm bot (~weekly) plus our `.github/workflows/bump-nixpkgs.yml` on every release (~5 min). See [docs/nixpkgs.md](docs/nixpkgs.md). Requires the `NIXPKGS_BUMP_PAT` repo secret.
 - Emergency Homebrew bump: `brew bump-formula-pr apfel --url=<tarball-url> --sha256=<hash>`
 - Emergency nixpkgs bump: run `scripts/bump-nixpkgs.sh` against a local nixpkgs clone and open a PR manually.
 

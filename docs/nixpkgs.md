@@ -1,20 +1,22 @@
 # nixpkgs distribution
 
-apfel ships on [nixpkgs](https://github.com/NixOS/nixpkgs) under the attribute `apfel-ai`. This page explains the name choice, how the automation works, and how to test or repair the package locally.
+apfel ships on [nixpkgs](https://github.com/NixOS/nixpkgs) under the attribute `apfel-llm`. This page explains the name choice, how the automation works, and how to test or repair the package locally.
 
 ## Install (end users)
 
 ```bash
-nix profile install nixpkgs#apfel-ai
+nix profile install nixpkgs#apfel-llm
 ```
 
 Runtime requirements are the same as Homebrew: macOS 26 Tahoe or later, Apple Silicon, Apple Intelligence enabled, Siri language matching device language.
 
-The binary on your `$PATH` is still `apfel` - only the install-time attribute is `apfel-ai`.
+The binary on your `$PATH` is still `apfel` - only the install-time attribute is `apfel-llm`.
 
-## Why `apfel-ai` and not `apfel`
+## Why `apfel-llm` and not `apfel`
 
-nixpkgs already has an unrelated package at [`pkgs/by-name/ap/apfel`](https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/ap/apfel/package.nix): the [scarrazza/apfel](https://github.com/scarrazza/apfel) particle-physics PDF Evolution Library (GPL3, maintained by `veprbl`). The name was taken years before apfel-ai existed, so nixpkgs convention requires disambiguation.
+nixpkgs already has an unrelated package at [`pkgs/by-name/ap/apfel`](https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/ap/apfel/package.nix): the [scarrazza/apfel](https://github.com/scarrazza/apfel) particle-physics PDF Evolution Library (GPL3, maintained by `veprbl`). The name was taken years before apfel existed in its AI form, so nixpkgs convention requires disambiguation.
+
+The disambiguator that landed upstream is `apfel-llm` (via [NixOS/nixpkgs#508084](https://github.com/NixOS/nixpkgs/pull/508084)). An earlier proposal used `apfel-ai`, but the upstream maintainer chose `-llm` as the more descriptive suffix. The binary on `$PATH` is still `apfel` either way - only the install attribute differs.
 
 ## Why a pre-built binary derivation
 
@@ -39,8 +41,8 @@ Expected latency: within ~7 days of release.
 [`.github/workflows/bump-nixpkgs.yml`](../.github/workflows/bump-nixpkgs.yml) fires on every `release: published` event from `make release`. It:
 
 1. Checks out a fresh copy of `Arthur-Ficial/nixpkgs` (our fork, synced with upstream master).
-2. Runs [`scripts/bump-nixpkgs.sh`](../scripts/bump-nixpkgs.sh) to rewrite `version` and `hash` in `pkgs/by-name/ap/apfel-ai/package.nix`.
-3. Commits on a branch `apfel-ai-<version>`, force-pushes to the fork.
+2. Runs [`scripts/bump-nixpkgs.sh`](../scripts/bump-nixpkgs.sh) to rewrite `version` and `hash` in `pkgs/by-name/ap/apfel-llm/package.nix`.
+3. Commits on a branch `apfel-llm-<version>`, force-pushes to the fork.
 4. Opens a PR on `NixOS/nixpkgs` (or updates the existing one if already open).
 
 Expected latency: within ~5 minutes of release.
@@ -83,19 +85,19 @@ On any Mac with Nix installed (we use the Determinate Systems installer on Apple
 ```bash
 git clone --depth 1 https://github.com/NixOS/nixpkgs.git /tmp/nixpkgs-test
 cd /tmp/nixpkgs-test
-nix-build -A apfel-ai --no-out-link
+nix-build -A apfel-llm --no-out-link
 
 # The resulting binary:
-ls /nix/store/*-apfel-ai-*/bin/apfel
+ls /nix/store/*-apfel-llm-*/bin/apfel
 ```
 
-Run it: `/nix/store/...-apfel-ai-.../bin/apfel --version`.
+Run it: `/nix/store/...-apfel-llm-.../bin/apfel --version`.
 
 To test a version bump before pushing, point `--file` at your local checkout:
 
 ```bash
 ./scripts/bump-nixpkgs.sh --version 1.2.3 \
-  --file /tmp/nixpkgs-test/pkgs/by-name/ap/apfel-ai/package.nix \
+  --file /tmp/nixpkgs-test/pkgs/by-name/ap/apfel-llm/package.nix \
   --dry-run
 ```
 
@@ -105,21 +107,21 @@ Very rare, but: if r-ryantm is down and the workflow is broken, you can bump by 
 
 ```bash
 cd /tmp/nixpkgs-test
-git fetch origin master && git checkout -B apfel-ai-manual origin/master
+git fetch origin master && git checkout -B apfel-llm-manual origin/master
 
 /path/to/apfel/scripts/bump-nixpkgs.sh \
   --version 1.2.3 \
-  --file pkgs/by-name/ap/apfel-ai/package.nix
+  --file pkgs/by-name/ap/apfel-llm/package.nix
 
-git add pkgs/by-name/ap/apfel-ai/package.nix
-git commit -m "apfel-ai: 1.2.3"
-git push fork apfel-ai-manual   # where `fork` is Arthur-Ficial/nixpkgs
-gh pr create --repo NixOS/nixpkgs --head Arthur-Ficial:apfel-ai-manual --base master \
-  --title "apfel-ai: 1.2.3"
+git add pkgs/by-name/ap/apfel-llm/package.nix
+git commit -m "apfel-llm: 1.2.3"
+git push fork apfel-llm-manual   # where `fork` is Arthur-Ficial/nixpkgs
+gh pr create --repo NixOS/nixpkgs --head Arthur-Ficial:apfel-llm-manual --base master \
+  --title "apfel-llm: 1.2.3"
 ```
 
 ## Tracking
 
-- Package source: <https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/ap/apfel-ai/package.nix>
-- nixpkgs PRs: <https://github.com/NixOS/nixpkgs/pulls?q=is%3Apr+apfel-ai>
-- r-ryantm PRs for apfel-ai: <https://github.com/NixOS/nixpkgs/pulls/r-ryantm?q=apfel-ai>
+- Package source: <https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/ap/apfel-llm/package.nix>
+- nixpkgs PRs: <https://github.com/NixOS/nixpkgs/pulls?q=is%3Apr+apfel-llm>
+- r-ryantm PRs for apfel-llm: <https://github.com/NixOS/nixpkgs/pulls/r-ryantm?q=apfel-llm>

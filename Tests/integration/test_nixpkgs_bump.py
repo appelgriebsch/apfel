@@ -28,7 +28,7 @@ TEMPLATE = '''{{
 }}:
 
 stdenvNoCC.mkDerivation (finalAttrs: {{
-  pname = "apfel-ai";
+  pname = "apfel-llm";
   version = "{version}";
 
   src = fetchurl {{

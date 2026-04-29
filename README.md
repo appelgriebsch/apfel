@@ -44,7 +44,7 @@ Build from source (Command Line Tools with macOS 26.4 SDK / Swift 6.3, no Xcode)
 git clone https://github.com/Arthur-Ficial/apfel.git && cd apfel && make install
 ```
 
-Same-day tap, Mint, mise, troubleshooting: [docs/install.md](docs/install.md).
+Nix, same-day tap, Mint, mise, troubleshooting: [docs/install.md](docs/install.md).
 
 ## Quick Start
 

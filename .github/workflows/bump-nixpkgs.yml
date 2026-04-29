@@ -1,8 +1,8 @@
-name: Bump nixpkgs apfel-ai
+name: Bump nixpkgs apfel-llm
 
 # Fires when `make release` publishes a new GitHub Release. The workflow
 # forks/pulls NixOS/nixpkgs, runs scripts/bump-nixpkgs.sh to update
-# version + hash in pkgs/by-name/ap/apfel-ai/package.nix, and opens a
+# version + hash in pkgs/by-name/ap/apfel-llm/package.nix, and opens a
 # bump PR against nixpkgs master.
 #
 # This is our Layer 2 fallback -- the community r-ryantm bot usually
@@ -78,9 +78,9 @@ jobs:
         run: |
           bash ./scripts/bump-nixpkgs.sh \
             --version "$VERSION" \
-            --file "nixpkgs/pkgs/by-name/ap/apfel-ai/package.nix"
+            --file "nixpkgs/pkgs/by-name/ap/apfel-llm/package.nix"
           # If git status shows no change, we're idempotent - bail early.
-          if git -C nixpkgs diff --quiet -- pkgs/by-name/ap/apfel-ai/package.nix; then
+          if git -C nixpkgs diff --quiet -- pkgs/by-name/ap/apfel-llm/package.nix; then
             echo "changed=0" >> "$GITHUB_OUTPUT"
           else
             echo "changed=1" >> "$GITHUB_OUTPUT"
@@ -96,10 +96,10 @@ jobs:
         run: |
           git config user.name "Arthur Ficial"
           git config user.email "arti.ficial@fullstackoptimization.com"
-          branch="apfel-ai-$VERSION"
+          branch="apfel-llm-$VERSION"
           git checkout -b "$branch"
-          git add pkgs/by-name/ap/apfel-ai/package.nix
-          git commit -m "apfel-ai: $VERSION"
+          git add pkgs/by-name/ap/apfel-llm/package.nix
+          git commit -m "apfel-llm: $VERSION"
           git push --force origin "$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
@@ -137,6 +137,6 @@ jobs:
             gh pr create --repo NixOS/nixpkgs \
               --head "Arthur-Ficial:$BRANCH" \
               --base master \
-              --title "apfel-ai: $VERSION" \
+              --title "apfel-llm: $VERSION" \
               --body "$body"
           fi

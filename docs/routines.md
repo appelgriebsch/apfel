@@ -20,7 +20,7 @@ Routines run on Anthropic's Linux cloud runners, so they cannot:
 - Run `make test`, `make preflight`, `swift build`, or any integration test that needs Apple Intelligence (there is no Apple Intelligence on Linux)
 - Test the actual behavior of code changes - only static review (style, structure, test coverage, security audit)
 - Merge a PR, approve a PR, cut a release, or update any distribution channel (Homebrew, nixpkgs, tap)
-- Change what you install via `brew install apfel` or `nix profile install nixpkgs#apfel-ai`
+- Change what you install via `brew install apfel` or `nix profile install nixpkgs#apfel-llm`
 
 Every code-PR review from a routine contains an explicit note that functional correctness was **not** verified and that @franzenzenhofer needs to run tests locally before merging.
 

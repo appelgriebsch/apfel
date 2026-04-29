@@ -22,7 +22,7 @@ Check whether apfel's three distribution channels are in sync. If any channel is
 |---|---|
 | **GitHub Releases** (the upstream that the other two feed from) | `gh release view --repo Arthur-Ficial/apfel` latest tag, published-at |
 | **homebrew-core** (`brew install apfel`) | `curl -s https://raw.githubusercontent.com/Homebrew/homebrew-core/master/Formula/a/apfel.rb` - look for the `version` / `url` fields |
-| **nixpkgs** (`nix profile install nixpkgs#apfel-ai`) | `curl -s https://raw.githubusercontent.com/NixOS/nixpkgs/master/pkgs/by-name/ap/apfel-ai/package.nix` - look for the `version` field |
+| **nixpkgs** (`nix profile install nixpkgs#apfel-llm`) | `curl -s https://raw.githubusercontent.com/NixOS/nixpkgs/master/pkgs/by-name/ap/apfel-llm/package.nix` - look for the `version` field |
 
 ### Step-by-step
 
@@ -40,7 +40,7 @@ Check whether apfel's three distribution channels are in sync. If any channel is
 
 4. **Fetch the nixpkgs package** and parse its version:
    ```bash
-   curl -sf https://raw.githubusercontent.com/NixOS/nixpkgs/master/pkgs/by-name/ap/apfel-ai/package.nix | grep -E 'version|hash'
+   curl -sf https://raw.githubusercontent.com/NixOS/nixpkgs/master/pkgs/by-name/ap/apfel-llm/package.nix | grep -E 'version|hash'
    ```
 
 5. **Compute lag.** For each channel that is behind the latest GitHub Release:
@@ -68,7 +68,7 @@ Routine check this morning - looks like <channel(s)> are trailing the latest rel
 |---|---|---|---|
 | GitHub Releases | v<canonical> | - | - |
 | homebrew-core | v<hb-current> | v<canonical> | ~<N>h |
-| nixpkgs `apfel-ai` | <nix-current> | <canonical> | ~<N>h |
+| nixpkgs `apfel-llm` | <nix-current> | <canonical> | ~<N>h |
 
 ## Fixing it (for you, not me)
 
@@ -91,7 +91,7 @@ gh workflow run bump-nixpkgs.yml --repo Arthur-Ficial/apfel -f version=<canonica
 Or from a local nixpkgs checkout:
 
 \```bash
-./scripts/bump-nixpkgs.sh --version <canonical> --file pkgs/by-name/ap/apfel-ai/package.nix
+./scripts/bump-nixpkgs.sh --version <canonical> --file pkgs/by-name/ap/apfel-llm/package.nix
 \```
 
 ## What I did NOT do
